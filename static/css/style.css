@@ -1,0 +1,247 @@
+:root {
+    --primary: #4A90E2;
+    --primary-hover: #357ABD;
+    --success: #00C851;
+    --error: #ff4444;
+    --background: #f8f9fa;
+    --text: #2c3e50;
+    --text-light: #666;
+    --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --radius: 12px;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    padding: 2rem;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    color: var(--text);
+    min-height: 100vh;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    padding: 2.5rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 2.5rem;
+    font-weight: 700;
+    font-size: 2.2rem;
+    background: linear-gradient(45deg, #2c3e50, #4A90E2);
+    --webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.upload-section {
+    border: 2px dashed var(--primary);
+    padding: 2.5rem 2rem;
+    text-align: center;
+    margin-bottom: 2rem;
+    background: rgba(74, 144, 226, 0.05);
+    border-radius: var(--radius);
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+}
+
+.upload-section:hover {
+    background: rgba(74, 144, 226, 0.1);
+    transform: translateY(-2px);
+}
+
+.upload-section::before {
+    content: '📤';
+    font-size: 2.5rem;
+    display: block;
+    margin-bottom: 1rem;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+}
+
+#csvFile {
+    display: none;
+}
+
+.custom-file-upload {
+    display: inline-block;
+    padding: 1rem 2rem;
+    background: var(--primary);
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: var(--transition);
+    font-weight: 500;
+    border: 2px solid transparent;
+}
+
+.custom-file-upload:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+}
+
+.file-name {
+    margin-top: 1rem;
+    color: var(--text-light);
+    font-size: 0.9rem;
+}
+
+#mappingSection {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: var(--radius);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+    color: var(--text-light);
+    font-size: 0.95rem;
+}
+
+select {
+    width: 100%;
+    padding: 0.8rem;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    background: white;
+    font-size: 1rem;
+    transition: var(--transition);
+}
+
+select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+}
+
+.progress-container {
+    height: 16px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), #6c5ce7);
+    width: 0%;
+    transition: var(--transition);
+    position: relative;
+}
+
+.progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(255,255,255,0.3) 50%, 
+        transparent 100%
+    );
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 1rem 2rem;
+    background: var(--success);
+    color: white;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: var(--transition);
+    font-weight: 500;
+}
+
+.download-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+    background: #009944;
+}
+
+.success-text {
+    text-align: center;
+    color: var(--success);
+    margin-top: 1rem;
+    font-weight: 500;
+}
+
+.loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.error-message {
+    padding: 1rem;
+    background: #ffe3e6;
+    color: var(--error);
+    border-radius: 8px;
+    margin-top: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    border: 1px solid #ffd6da;
+}
+
+.error-icon {
+    font-size: 1.2rem;
+}
+
+.hidden {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    body {
+        padding: 1rem;
+    }
+    
+    .container {
+        padding: 1.5rem;
+    }
+    
+    h1 {
+        font-size: 1.8rem;
+    }
+}

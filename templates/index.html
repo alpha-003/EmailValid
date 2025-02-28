@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Validator</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Email Validation Toolkit</h1>
+        
+        <div class="upload-section">
+            <label class="custom-file-upload">
+                <input type="file" id="csvFile" accept=".csv">
+                Choose CSV File
+            </label>
+            <div class="file-name" id="fileName"></div>
+            <div id="mappingSection" class="hidden">
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="hasHeaders" checked>
+                        <span>CSV contains header row</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <h3>Email Column Selection</h3>
+                    <select id="columnSelect"></select>
+                    <div id="columnHelp" class="help-text"></div>
+                </div>
+                <button onclick="startValidation()" id="validateButton">
+                    <span class="button-text">Start Validation</span>
+                    <div class="loading-spinner hidden"></div>
+                </button>
+            </div>
+        </div>
+
+        <div id="progressSection" class="hidden">
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div id="statusMessage">
+                <span class="status-text">Processing</span>
+                <span class="status-dots"></span>
+            </div>
+        </div>
+
+        <div id="downloadSection" class="hidden">
+            <a id="downloadLink" class="download-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                Download Results
+            </a>
+            <p class="success-text">Validation complete! 🎉</p>
+        </div>
+
+        <div id="errorMessage" class="error-message hidden">
+            <span class="error-icon">⚠️</span>
+            <span class="error-text"></span>
+        </div>
+    </div>
+
+    <script src="/static/js/script.js"></script>
+</body>
+</html>
