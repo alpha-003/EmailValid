@@ -41,7 +41,7 @@ To set up the Email Validation Toolkit on your local machine, follow these steps
 
 ### Clone the Repository
 ```bash
-git clone <>
+git clone https://github.com/alpha-003/EmailValid.git
 cd EmailValid
 ```
 
