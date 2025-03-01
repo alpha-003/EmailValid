@@ -1,30 +1,30 @@
 let currentTaskId = null;
 let dotsInterval = null;
 
-document.getElementById('csvFile').addEventListener('change', function(e) {
+document.getElementById('csvFile').addEventListener('change', function (e) {
     const file = e.target.files[0];
     const fileName = document.getElementById('fileName');
-    
+
     resetUI();
-    
+
     if (!file) return;
-    
+
     fileName.textContent = file.name;
     fileName.classList.add('show');
-    
+
     Papa.parse(file, {
         preview: 1,
-        complete: function(results) {
+        complete: function (results) {
             updateColumnSelector(results.data[0]);
             document.getElementById('mappingSection').classList.remove('hidden');
         },
-        error: function(error) {
+        error: function (error) {
             showError(`Error reading CSV: ${error.message}`);
         }
     });
 });
 
-document.getElementById('hasHeaders').addEventListener('change', function(e) {
+document.getElementById('hasHeaders').addEventListener('change', function (e) {
     updateColumnSelector();
 });
 
@@ -32,9 +32,9 @@ function updateColumnSelector(headers = []) {
     const hasHeaders = document.getElementById('hasHeaders').checked;
     const select = document.getElementById('columnSelect');
     const helpText = document.getElementById('columnHelp');
-    
+
     select.innerHTML = '';
-    
+
     if (hasHeaders && headers.length > 0) {
         headers.forEach(header => {
             const option = document.createElement('option');
@@ -59,7 +59,7 @@ function startValidation() {
     const file = document.getElementById('csvFile').files[0];
     const emailColumn = document.getElementById('columnSelect').value;
     const hasHeaders = document.getElementById('hasHeaders').checked;
-    
+
     if (!file) {
         showError('Please select a CSV file first');
         return;
@@ -67,7 +67,7 @@ function startValidation() {
 
     toggleLoading(true);
     showProgress();
-    
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('email_column', emailColumn);
@@ -77,15 +77,15 @@ function startValidation() {
         method: 'POST',
         body: formData
     })
-    .then(handleResponse)
-    .then(data => {
-        currentTaskId = data.task_id;
-        monitorProgress(data.task_id);
-    })
-    .catch(error => {
-        toggleLoading(false);
-        handleError(error);
-    });
+        .then(handleResponse)
+        .then(data => {
+            currentTaskId = data.task_id;
+            monitorProgress(data.task_id);
+        })
+        .catch(error => {
+            toggleLoading(false);
+            handleError(error);
+        });
 }
 
 function handleResponse(response) {
@@ -105,14 +105,14 @@ function monitorProgress(taskId) {
             .then(handleResponse)
             .then(data => {
                 updateProgressUI(data, progressBar);
-                
+
                 if (data.status === 'completed') {
                     clearInterval(interval);
                     clearInterval(dotsInterval);
                     toggleLoading(false);
                     showDownloadButton(taskId);
                 }
-                
+
                 if (data.status === 'failed') {
                     clearInterval(interval);
                     clearInterval(dotsInterval);
@@ -146,7 +146,7 @@ function toggleLoading(isLoading) {
     const btn = document.getElementById('validateButton');
     const spinner = btn.querySelector('.loading-spinner');
     const btnText = btn.querySelector('.button-text');
-    
+
     btn.disabled = isLoading;
     spinner.classList.toggle('hidden', !isLoading);
     btnText.textContent = isLoading ? 'Validating...' : 'Start Validation';
@@ -167,10 +167,10 @@ function showDownloadButton(taskId) {
 function showError(message) {
     const errorDiv = document.getElementById('errorMessage');
     const errorText = errorDiv.querySelector('.error-text');
-    
+
     errorText.textContent = message;
     errorDiv.classList.remove('hidden');
-    
+
     setTimeout(() => {
         errorDiv.classList.add('hidden');
     }, 5000);
