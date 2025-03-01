@@ -1,17 +1,17 @@
 from flask import Flask, render_template, request, jsonify, send_file, after_this_request #Shalini
-from werkzeug.utils import secure_filename   #Anand
-from csv import DictReader, reader  #Anand
-import os  #Anand
-import uuid #Anand
-import threading #Shalini && Anand
+from werkzeug.utils import secure_filename    
+from csv import DictReader, reader   
+import os   
+import uuid  
+import threading  
 import csv
-import re  #Shalini
-import dns.resolver   #Shalini && Anand
-import smtplib    #Shalini && Anand
-import tempfile     #Anand
-import logging   #Shalaini
+import re  
+import dns.resolver    
+import smtplib     
+import tempfile      
+import logging    
 from datetime import datetime
-from typing import List, Dict, Union #Shalini && Anand
+from typing import List, Dict, Union  
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
