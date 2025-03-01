@@ -1,17 +1,18 @@
-from flask import Flask, render_template, request, jsonify, send_file, after_this_request #Shalini
-from werkzeug.utils import secure_filename    
-from csv import DictReader, reader   
-import os   
-import uuid  
-import threading  
+from flask import Flask, render_template, request, jsonify, send_file, after_this_request
+from werkzeug.utils import secure_filename
+from csv import DictReader, reader
+import os
+import uuid
+import threading
 import csv
-import re  
-import dns.resolver    
-import smtplib     
-import tempfile      
-import logging    
+import re
+import dns.resolver
+import smtplib
+import tempfile
+import logging
 from datetime import datetime
-from typing import List, Dict, Union  
+from concurrent.futures import ThreadPoolExecutor
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -19,33 +20,47 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Configuration
+# Application configuration
 app.config.update({
-    'MAX_CONTENT_LENGTH': 500 * 1024 * 1024,  # 500MB
+    'MAX_CONTENT_LENGTH': 500 * 1024 * 1024,
     'UPLOAD_FOLDER': tempfile.gettempdir(),
     'ALLOWED_EXTENSIONS': {'csv'},
     'DISPOSABLE_DOMAINS_PATH': 'disposable_domains.txt',
     'ROLE_PREFIXES': ['admin', 'support', 'info', 'sales', 'contact'],
-    'CACHE_TIMEOUT': 3600  # 1 hour
+    'CACHE_TIMEOUT': 3600,
+    'MAX_WORKERS': 20,
+    'DNS_SERVERS': ['8.8.8.8', '8.8.4.4'],
+    'SMTP_TIMEOUT': 10
 })
 
 tasks = {}
 
 class EmailValidator:
-    def __init__(self):
-        self.disposable_domains = self.load_disposable_domains()
-        self.cache = {}
-        self.role_prefixes = app.config['ROLE_PREFIXES']
-        
-    def load_disposable_domains(self) -> set:
-        try:
-            with open(app.config['DISPOSABLE_DOMAINS_PATH']) as f:
-                return {line.strip() for line in f}
-        except FileNotFoundError:
-            logger.warning("Disposable domains file not found")
-            return set()
+    # Shared resources with thread-safe access
+    EMAIL_REGEX = re.compile(r'^[\w\.\+\-]+\@[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-\.]+$')
+    _disposable_domains = None
+    _domain_cache = {}
+    _catch_all_cache = {}
+    _cache_lock = threading.Lock()
+    _catch_all_lock = threading.Lock()
 
-    def validate(self, email: str) -> Dict:
+    def __init__(self):
+        self._load_disposable_domains()
+        self.resolver = dns.resolver.Resolver()
+        self.resolver.nameservers = app.config['DNS_SERVERS']
+
+    def _load_disposable_domains(self):
+        """Load disposable domains once during initialization"""
+        if self.__class__._disposable_domains is None:
+            try:
+                with open(app.config['DISPOSABLE_DOMAINS_PATH']) as f:
+                    self.__class__._disposable_domains = {line.strip() for line in f}
+            except FileNotFoundError:
+                logger.warning("Disposable domains file not found")
+                self.__class__._disposable_domains = set()
+
+    def validate(self, email: str) -> dict:
+        """Validate email with optimized checks and early exits"""
         result = {
             'email': email,
             'syntax_valid': False,
@@ -58,20 +73,22 @@ class EmailValidator:
         }
 
         try:
-            # Syntax validation
-            if not re.match(r'^[\w\.\+\-]+\@[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-\.]+$', email):
+            # Fast syntax validation
+            if not self.EMAIL_REGEX.match(email):
                 raise ValueError("Invalid email syntax")
             
             result['syntax_valid'] = True
-            local_part, domain = email.split('@')
+            local_part, domain = email.split('@', 1)
 
-            # Disposable check
-            result['is_disposable'] = domain in self.disposable_domains
+            # Early exit for disposable domains
+            if domain in self._disposable_domains:
+                result['is_disposable'] = True
+                return result
 
-            # Role-based check
+            # Role-based account detection
             result['is_role'] = any(
                 local_part.lower().startswith(prefix)
-                for prefix in self.role_prefixes
+                for prefix in app.config['ROLE_PREFIXES']
             )
 
             # Domain validation with caching
@@ -81,50 +98,63 @@ class EmailValidator:
 
             # SMTP validation
             result['smtp_valid'] = self.check_smtp(email, domain)
-
-            # Catch-all check
+            
+            # Catch-all domain check
             result['is_catch_all'] = self.check_catch_all(domain)
 
         except Exception as e:
             result['errors'].append(str(e))
-            logger.debug(f"Validation error for {email}: {str(e)}")
 
         return result
 
     def check_domain(self, domain: str) -> bool:
-        if domain in self.cache:
-            return self.cache[domain]
-        
+        """Check domain MX records with caching"""
+        now = time.time()
+        with self._cache_lock:
+            cached = self._domain_cache.get(domain)
+            if cached and (now - cached[1]) < app.config['CACHE_TIMEOUT']:
+                return cached[0]
+
         try:
-            mx_records = dns.resolver.resolve(domain, 'MX')
+            mx_records = self.resolver.resolve(domain, 'MX', lifetime=5)
             valid = len(mx_records) > 0
-            self.cache[domain] = valid
+            with self._cache_lock:
+                self._domain_cache[domain] = (valid, now)
             return valid
         except Exception as e:
-            logger.debug(f"Domain check failed for {domain}: {str(e)}")
+            logger.debug(f"Domain check failed: {str(e)}")
+            with self._cache_lock:
+                self._domain_cache[domain] = (False, now)
             return False
 
     def check_smtp(self, email: str, domain: str) -> bool:
+        """Perform SMTP check with timeout"""
         try:
-            mx_records = dns.resolver.resolve(domain, 'MX')
+            mx_records = self.resolver.resolve(domain, 'MX', lifetime=5)
             mx_server = str(mx_records[0].exchange)
             
-            with smtplib.SMTP(mx_server, timeout=10) as server:
+            with smtplib.SMTP(mx_server, timeout=app.config['SMTP_TIMEOUT']) as server:
                 server.docmd('HELO example.com')
                 server.docmd(f'MAIL FROM:<verify@{domain}>')
                 code, _ = server.docmd(f'RCPT TO:<{email}>')
                 return code == 250
         except Exception as e:
-            logger.debug(f"SMTP check failed for {email}: {str(e)}")
+            logger.debug(f"SMTP check failed: {str(e)}")
             return False
 
     def check_catch_all(self, domain: str) -> bool:
-        try:
-            test_email = f'test-{datetime.now().timestamp()}@{domain}'
-            return self.check_smtp(test_email, domain)
-        except Exception as e:
-            logger.debug(f"Catch-all check failed for {domain}: {str(e)}")
-            return False
+        """Check catch-all status with caching"""
+        now = time.time()
+        with self._catch_all_lock:
+            cached = self._catch_all_cache.get(domain)
+            if cached and (now - cached[1]) < app.config['CACHE_TIMEOUT']:
+                return cached[0]
+
+        test_email = f'test-{datetime.now().timestamp()}@{domain}'
+        is_catch_all = self.check_smtp(test_email, domain)
+        with self._catch_all_lock:
+            self._catch_all_cache[domain] = (is_catch_all, now)
+        return is_catch_all
 
 class ValidationTask:
     def __init__(self, file_path: str, email_column: str, has_headers: bool):
@@ -138,48 +168,44 @@ class ValidationTask:
         self.total_rows = 0
         self.processed_rows = 0
         tasks[self.task_id] = self
-        logger.info(f"Created task {self.task_id}")
 
     def process(self):
+        """Process CSV file with parallel validation"""
         try:
-            logger.info(f"Starting processing for task {self.task_id}")
             self.status = 'processing'
             validator = EmailValidator()
+            emails = []
 
-            # Count total rows
+            # Collect emails from CSV
             with open(self.file_path, 'r', encoding='utf-8') as f:
-                self.total_rows = sum(1 for _ in f) - (1 if self.has_headers else 0)
-                self.total_rows = max(self.total_rows, 1)  # Prevent division by zero
-
-            self.result_file = os.path.join(app.config['UPLOAD_FOLDER'], f'results_{self.task_id}.csv')
-            
-            with open(self.file_path, 'r', encoding='utf-8') as infile, \
-                 open(self.result_file, 'w', newline='', encoding='utf-8') as outfile:
-
-                # Configure reader based on headers
+                csv_reader = DictReader(f) if self.has_headers else reader(f)
                 if self.has_headers:
-                    csv_reader = DictReader(infile)
-                    get_email = lambda row: row.get(self.email_column, '')
-                else:
-                    csv_reader = reader(infile)
-                    col_index = int(self.email_column)
-                    get_email = lambda row: row[col_index] if len(row) > col_index else ''
+                    next(csv_reader)  # Skip header row
+                
+                for row in csv_reader:
+                    email = (row[self.email_column] if self.has_headers 
+                            else row[int(self.email_column)]).strip()
+                    if email:
+                        emails.append(email)
 
-                writer = csv.writer(outfile)
+            self.total_rows = len(emails)
+            if self.total_rows == 0:
+                raise ValueError("No valid emails found")
+
+            # Parallel validation
+            with ThreadPoolExecutor(max_workers=app.config['MAX_WORKERS']) as executor:
+                results = list(executor.map(validator.validate, emails))
+
+            # Write results to CSV
+            self.result_file = os.path.join(app.config['UPLOAD_FOLDER'], f'results_{self.task_id}.csv')
+            with open(self.result_file, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
                 writer.writerow([
                     'Email', 'Valid Syntax', 'Valid Domain', 'SMTP Valid',
                     'Disposable', 'Role Account', 'Catch-All Domain', 'Errors'
                 ])
-
-                for row_num, row in enumerate(csv_reader):
-                    if self.has_headers and row_num == 0:
-                        continue  # Skip header row
-
-                    email = get_email(row).strip()
-                    if not email:
-                        continue
-
-                    result = validator.validate(email)
+                
+                for idx, result in enumerate(results):
                     writer.writerow([
                         result['email'],
                         result['syntax_valid'],
@@ -190,12 +216,11 @@ class ValidationTask:
                         result['is_catch_all'],
                         '; '.join(result['errors'])
                     ])
-                    
-                    self.processed_rows += 1
+                    self.processed_rows = idx + 1
                     self.progress = min(100, int((self.processed_rows / self.total_rows) * 100))
 
             self.status = 'completed'
-            logger.info(f"Completed task {self.task_id}")
+            logger.info(f"Task {self.task_id} completed successfully")
 
         except Exception as e:
             logger.error(f"Task {self.task_id} failed: {str(e)}")
@@ -207,6 +232,7 @@ class ValidationTask:
             except Exception as e:
                 logger.error(f"Error cleaning up input file: {str(e)}")
 
+# Flask Routes
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -232,7 +258,7 @@ def handle_upload():
         temp_path = os.path.join(app.config['UPLOAD_FOLDER'], f"upload_{uuid.uuid4()}.csv")
         file.save(temp_path)
 
-        # Validate column exists
+        # Validate CSV structure
         with open(temp_path, 'r', encoding='utf-8') as f:
             if has_headers:
                 try:
